@@ -1,15 +1,15 @@
 services:
     mongodb:
         build:
-            context: .
-            dockerfile: Dockerfile
+            context: ./backend
+            dockerfile: Dockerfile.mongodb
         container_name: mongodb
         ports:
             - '27017:27017'
         volumes:
             - mongodb_data:/data/db
         networks:
-            - mongo-network
+            - app-network
 
     mongo-express:
         image: mongo-express:latest
@@ -23,10 +23,46 @@ services:
         depends_on:
             - mongodb
         networks:
-            - mongo-network
+            - app-network
+
+    backend:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile.api
+        container_name: backend-api
+        ports:
+            - '8000:8000'
+        volumes:
+            - ./backend:/app
+        environment:
+            - MONGODB_URL=mongodb:27017
+            - MONGODB_USERNAME=root
+            - MONGODB_PASSWORD=password
+            - MONGODB_DATABASE=blogdumoderateur
+        depends_on:
+            - mongodb
+        networks:
+            - app-network
+
+    frontend:
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
+        container_name: frontend-react
+        ports:
+            - '5173:5173'
+        volumes:
+            - ./frontend:/app
+            - /app/node_modules
+        environment:
+            - VITE_API_URL=http://localhost:8000
+        depends_on:
+            - backend
+        networks:
+            - app-network
 
 networks:
-    mongo-network:
+    app-network:
         driver: bridge
 
 volumes:

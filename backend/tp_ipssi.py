@@ -2,7 +2,7 @@
 
 import requests
 from bs4 import BeautifulSoup
-from api import create_article, create_category, create_image
+from db import create_article, create_category, create_image
 
 headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -19,7 +19,6 @@ def format_article(article, category):
     if link:
         href = link.get('href')
         article_data = fetch_article_data(href)
-        article_data['sub_category'] = article.find('span', class_='favtag color-b').text.strip()
         article_data['category'] = category
         create_article(article_data)
         return article_data
@@ -37,20 +36,30 @@ def fetch_article_data(url):
         'images': [],
     }
 
-    article_title = main_tag.find('h1')
+    article_title = main_tag.find('h1', class_='entry-title')
     final_data['title'] = article_title.text.strip()
 
     thumbnail = main_tag.find('figure', class_='article-hat-img')
     if thumbnail:
-        final_data['thumbnail'] = thumbnail.find('img').get('src') if thumbnail.find('img') else 'No thumbnail'
+        temp_thumbnail = thumbnail.find('img') 
+        if temp_thumbnail:
+            if 'data:image/svg' in str(temp_thumbnail.get('src')) and temp_thumbnail.get('data-lazy-src'):
+                final_data['thumbnail'] = temp_thumbnail.get('data-lazy-src')
+            else:
+                final_data['thumbnail'] = temp_thumbnail.get('src')
 
-    resume = main_tag.find('div', class_='article-hat t-quote pb-md-8 pb-5')
+    resume = main_tag.find('div', class_='article-hat')
     if resume:
         final_data['resume'] = resume.find('p').text.strip() if resume.find('p') else 'No resume'
 
+    content = main_tag.find('div', class_='entry-content')
+    if content:
+        final_data['content'] = str(content) if content else 'No content'
+
+    
     posted_on = main_tag.find('span', class_='posted-on')
     if posted_on:
-        final_data['posted_on'] = posted_on.text.strip() + " " + posted_on.find('time')['datetime'] if posted_on.find('time') else 'No posted on'
+        final_data['posted_on'] = posted_on.find('time').get('datetime')
 
     author = main_tag.find('span', class_='byline')
     if author:
@@ -60,9 +69,7 @@ def fetch_article_data(url):
     for figure in figures:
         if figure.find('img'):
             img_tag = figure.find('img')
-            print(img_tag)
             
-            # Gestion des images avec data-lazy-src (images chargées en lazy loading)
             src = img_tag.get('src')
             if 'data:image/svg' in str(src) and img_tag.get('data-lazy-src'):
                 src = img_tag.get('data-lazy-src')
@@ -75,23 +82,15 @@ def fetch_article_data(url):
                 'alt': img_tag.get('alt', 'No alt text')
             }
             final_data['images'].append(image_object)
-    
-    standalone_images = main_tag.find_all('img', recursive=True)
-    for img in standalone_images:
-        if img.parent.name != 'figure':  
-            src = img.get('src')
-            if 'data:image/svg' in str(src) and img.get('data-lazy-src'):
-                src = img.get('data-lazy-src')
-            elif not src:
-                src = 'No image'
-                
-            image_object = {
-                'src': src,
-                'caption': 'No caption',
-                'alt': img.get('alt', 'No alt text')
-            }
-            final_data['images'].append(image_object)
 
+    sub_category = main_tag.find('ul', class_='tags-list')
+    if sub_category:
+        sub_category_items = sub_category.find_all('li')
+        final_data['sub_categories'] = []
+        for item in sub_category_items:
+            link = item.find('a', class_='post-tags')
+            if link:
+                final_data['sub_categories'].append(link.text.strip())
     return final_data
 
 def fetch_articles(url):
