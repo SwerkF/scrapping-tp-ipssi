@@ -36,12 +36,11 @@ def create_article(article):
     
     sub_category_ids = []
     if "sub_category" in article:
-        # Si c'est une seule sous-catégorie sous forme de chaîne
         if isinstance(article["sub_category"], str):
             sub_cat_name = article["sub_category"]
             sub_cat_id = create_sub_category({"name": sub_cat_name})
             sub_category_ids.append(sub_cat_id)
-        # Si c'est une liste de sous-catégories
+
         elif isinstance(article["sub_category"], list):
             for sub_cat_name in article["sub_category"]:
                 sub_cat_id = create_sub_category({"name": sub_cat_name})
@@ -67,7 +66,6 @@ def create_article(article):
         article_to_insert["image_ids"] = image_ids
         del article_to_insert["images"]
     
-    # Insérer l'article
     result = mycol.insert_one(article_to_insert)
     return result.inserted_id
 
@@ -100,3 +98,28 @@ def create_image(image):
     
     result = mycol.insert_one(image)
     return result.inserted_id
+
+def get_articles(
+    search,
+    page,
+    limit,
+    sub_category
+):
+    mycol = mydb["articles"]
+    return mycol.find(
+        {
+            "title": {
+                "$regex": search,
+                "$options": "i"
+            }
+        },
+        {
+            "skip": (page - 1) * limit,
+            "limit": limit
+        },
+        {
+            "category_id": {
+                "$in": sub_category
+            }
+        }
+    )
